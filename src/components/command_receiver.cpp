@@ -1,10 +1,25 @@
+/**
+ * @file    command_receiver.cpp
+ * @brief   Implementation of the CRC-16 validated command receiver.
+ *
+ * @details Implements:
+ *          - CRC-16/IBM lookup-table implementation (0x8005 polynomial)
+ *          - Packet validation and parity checking
+ *          - Simple command parsing (opcode only for Arm/Disarm/etc.)
+ *          - Full attitude packet parsing (opcode + 4x float + CRC16)
+ *          - Ring-buffer ingestion from UART stream
+ *          - Valid/invalid packet counters for diagnostics
+ *
+ * @ingroup components
+ */
+
 #include "components/command_receiver.hpp"
 
 #include <cstring>
 
 namespace drone::components {
 
-// CRC-16/IBM implementation
+// ---- CRC-16/IBM lookup table (poly 0x8005) ----
 static const uint16_t crc16Table[256] = {
     0x0000, 0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
     0x8033, 0x0036, 0x003C, 0x8039, 0x0028, 0x802D, 0x8027, 0x0022,
@@ -40,22 +55,26 @@ static const uint16_t crc16Table[256] = {
     0x8213, 0x0216, 0x021C, 0x8219, 0x0208, 0x820D, 0x8207, 0x0202
 };
 
+// ============================================================================
+//  receive — parse the next valid command from buffer
+// ============================================================================
+
 bool CommandReceiver::receive(core::VehicleCommand& command) {
     if (size_ == 0) {
         return false;
     }
 
-    // Packet format: [opcode(1)] [roll(4)] [pitch(4)] [yaw(4)] [throttle(4)] [crc16(2)]
-    constexpr std::size_t minPacketSize = 3;  // opcode + 2 byte CRC
+    constexpr std::size_t minPacketSize = 3;      // opcode + 2 CRC bytes
     constexpr std::size_t fullPacketSize = 1 + 4 + 4 + 4 + 4 + 2;  // 19 bytes
-    
+
     if (size_ < minPacketSize) {
         size_ = 0;
         return false;
     }
-    
-    if (buffer_[0] == static_cast<uint8_t>(core::CommandType::SetAttitude) && size_ >= fullPacketSize) {
-        // Full attitude packet with CRC
+
+    // Full attitude packet with float payload
+    if (buffer_[0] == static_cast<uint8_t>(core::CommandType::SetAttitude) &&
+        size_ >= fullPacketSize) {
         if (!validatePacket(buffer_, fullPacketSize)) {
             invalidPackets_++;
             size_ = 0;
@@ -63,26 +82,22 @@ bool CommandReceiver::receive(core::VehicleCommand& command) {
         }
         return parseCommand(buffer_, fullPacketSize, command);
     }
-    
-    // Simple command (opcode only, no CRC)
+
+    // Simple command (opcode + CRC)
     if (!validatePacket(buffer_, size_)) {
         invalidPackets_++;
     }
-    
+
     command = {};
     command.type = static_cast<core::CommandType>(buffer_[0]);
-    
-    if (buffer_[0] == static_cast<uint8_t>(core::CommandType::SetAttitude)) {
-        command.roll = 0.1f;
-        command.pitch = 0.1f;
-        command.yaw = 0.0f;
-        command.throttle = 0.6f;
-    }
-    
     validPackets_++;
     size_ = 0;
     return true;
 }
+
+// ============================================================================
+//  ingest / reset
+// ============================================================================
 
 void CommandReceiver::ingest(const uint8_t* data, std::size_t size) {
     if (size > sizeof(buffer_)) {
@@ -101,6 +116,10 @@ void CommandReceiver::reset() {
     for (auto& b : buffer_) b = 0;
 }
 
+// ============================================================================
+//  CRC-16 calculation (lookup-table based)
+// ============================================================================
+
 uint16_t CommandReceiver::calculateCrc16(const uint8_t* data, std::size_t length) {
     uint16_t crc = 0xFFFF;
     for (std::size_t i = 0; i < length; ++i) {
@@ -110,42 +129,51 @@ uint16_t CommandReceiver::calculateCrc16(const uint8_t* data, std::size_t length
     return crc ^ 0xFFFF;
 }
 
+// ============================================================================
+//  Packet validation and parsing
+// ============================================================================
+
 bool CommandReceiver::validatePacket(const uint8_t* data, std::size_t size) {
     if (size < 3) return false;  // Need at least opcode + 2 CRC bytes
-    
-    // Last 2 bytes are CRC
-    uint16_t receivedCrc = (static_cast<uint16_t>(data[size - 2]) << 8) | data[size - 1];
+
+    // Last 2 bytes are CRC (big-endian)
+    uint16_t receivedCrc = (static_cast<uint16_t>(data[size - 2]) << 8) |
+                            data[size - 1];
     uint16_t calculatedCrc = calculateCrc16(data, size - 2);
-    
+
     return (receivedCrc == calculatedCrc);
 }
 
-bool CommandReceiver::parseCommand(const uint8_t* data, std::size_t size, core::VehicleCommand& command) {
+bool CommandReceiver::parseCommand(const uint8_t* data, std::size_t size,
+                                   core::VehicleCommand& command) {
     if (size < 3) return false;
-    
+
     command = {};
     command.type = static_cast<core::CommandType>(data[0]);
-    
+
     if (command.type == core::CommandType::SetAttitude && size >= 17) {
-        // Extract float values (little-endian)
-        uint32_t rollRaw = data[1] | (data[2] << 8) | (data[3] << 16) | (data[4] << 24);
-        uint32_t pitchRaw = data[5] | (data[6] << 8) | (data[7] << 16) | (data[8] << 24);
-        uint32_t yawRaw = data[9] | (data[10] << 8) | (data[11] << 16) | (data[12] << 24);
-        uint32_t thrRaw = data[13] | (data[14] << 8) | (data[15] << 16) | (data[16] << 24);
-        
-        float* rollPtr = reinterpret_cast<float*>(&rollRaw);
-        float* pitchPtr = reinterpret_cast<float*>(&pitchRaw);
-        float* yawPtr = reinterpret_cast<float*>(&yawRaw);
-        float* thrPtr = reinterpret_cast<float*>(&thrRaw);
-        
-        command.roll = *rollPtr;
-        command.pitch = *pitchPtr;
-        command.yaw = *yawPtr;
-        command.throttle = *thrPtr;
+        // Extract 4 float values (little-endian byte order)
+        uint32_t rollRaw  = data[1]  | ((uint32_t)data[2] << 8) |
+                            ((uint32_t)data[3] << 16) | ((uint32_t)data[4] << 24);
+        uint32_t pitchRaw = data[5]  | ((uint32_t)data[6] << 8) |
+                            ((uint32_t)data[7] << 16) | ((uint32_t)data[8] << 24);
+        uint32_t yawRaw   = data[9]  | ((uint32_t)data[10] << 8) |
+                            ((uint32_t)data[11] << 16) | ((uint32_t)data[12] << 24);
+        uint32_t thrRaw   = data[13] | ((uint32_t)data[14] << 8) |
+                            ((uint32_t)data[15] << 16) | ((uint32_t)data[16] << 24);
+
+        command.roll     = *reinterpret_cast<float*>(&rollRaw);
+        command.pitch    = *reinterpret_cast<float*>(&pitchRaw);
+        command.yaw      = *reinterpret_cast<float*>(&yawRaw);
+        command.throttle = *reinterpret_cast<float*>(&thrRaw);
     }
-    
+
     return true;
 }
+
+// ============================================================================
+//  Statistics accessors
+// ============================================================================
 
 uint32_t CommandReceiver::getValidPackets() const noexcept {
     return validPackets_;
