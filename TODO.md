@@ -6,7 +6,7 @@
 - [x] 1. System Clock @400MHz (HSE+PLL, VOS0, Flash 4WS, SysTick)
 - [x] 2. I2C Driver (register-level, 4 instances, error handling)
 - [x] 3. MPU6050 IMU Driver (I2C-based, full init/read, self-test)
-- [x] 4. UART DMA Driver (8 instances, ring buffers, register-level)
+- [x] 4. UART DMA Driver (8 instances, ring buffers, register-level) 🔧 RCC_APB2ENR fixed
 - [x] 5. PWM Timer Driver (register-level, 400Hz, 4 channels)
 - [x] 6. ADC Battery Driver (voltage/battery reading, calibration)
 - [x] 7. GPIO LED/Button Driver (register-level, AF config)
