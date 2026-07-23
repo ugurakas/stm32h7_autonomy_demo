@@ -59,11 +59,71 @@
     - ✅ Error manager integration
     - ✅ Battery voltage monitoring with low-battery failsafe
 
+## Phase 5: Additional Hardware Drivers (⬜ Planned)
+- [ ] 16. **SPI Driver** (register-level, multiple instances, DMA support)
+- [ ] 17. **DMA Controller Driver** (memory-to-peripheral, peripheral-to-memory)
+- [ ] 18. **External Interrupt Driver** (EXTI lines, callback registration)
+- [ ] 19. **RTC Driver** (real-time clock, timestamp for logs/errors)
+- [ ] 20. **Barometer Driver** (MS5611/BMP280 via I2C/SPI for altitude)
+- [ ] 21. **Magnetometer Driver** (HMC5883L/QMC5883L via I2C for heading)
+- [ ] 22. **GPS/GNSS Driver** (UART-based NMEA/UBX protocol parser)
+- [ ] 23. **RC Input Driver** (SBUS/CRSF/PWM capture for manual control)
+- [ ] 24. **Current Sensor Driver** (ACS758/INA219 for battery current)
+- [ ] 25. **Distance Sensor Driver** (VL53L1X/HC-SR04 for obstacle/altitude)
+- [ ] 26. **Buzzer Driver** (PWM-driven tones and alarm melodies)
+- [ ] 27. **Flash/EEPROM Emulation Driver** (STM32H7 flash for config persistence)
+
+## Phase 6: Advanced Estimation & Control (⬜ Planned)
+- [ ] 28. **AHRS/Attitude Estimator** (Mahony/Madgwick filter for roll/pitch/yaw)
+- [ ] 29. **Sensor Fusion Module** (IMU + Barometer + Magnetometer + GPS fusion)
+- [ ] 30. **Position Controller** (GPS waypoint navigation, loiter mode)
+- [ ] 31. **Geofence Implementation** (distance/altitude boundary enforcement)
+- [ ] 32. **Motor Failure Detection** (RPM feedback, motor health monitoring)
+- [ ] 33. **Vibration Analysis** (notch filters, FFT-based frequency detection)
+- [ ] 34. **Dynamic PID Tuning** (auto-tune, gain scheduling by flight mode)
+- [ ] 35. **ESC Calibration Routine** (ESC arming, throttle calibration sequence)
+
+## Phase 7: Safety & Failsafe Systems (⬜ Planned)
+- [ ] 36. **Pre-arm Safety Checks** (voltage, calibration, sensor health)
+- [ ] 37. **Arm Safety Switch** (stick gesture or button combo to arm)
+- [ ] 38. **Watchdog Timer** (independent IWDG, system reset on hang)
+- [ ] 39. **Multi-level Battery Failsafe** (warning -> auto-land -> motor cut)
+- [ ] 40. **Return-to-Home (RTH)** (GPS-based auto-return on signal loss)
+- [ ] 41. **Altitude & Angle Hard Limits** (enforced safety bounds)
+- [ ] 42. **Kill Switch** (instant motor stop via RC channel or button)
+- [ ] 43. **Thermal Protection** (temperature monitoring, throttle limiting)
+
+## Phase 8: Data & Configuration Systems (⬜ Planned)
+- [ ] 44. **Parameter System** (tunable PID gains, calibration values)
+- [ ] 45. **Configuration Storage** (Flash/EEPROM read/write for persistence)
+- [ ] 46. **Data Logger / Blackbox** (SD card or flash logging of flight data)
+- [ ] 47. **Telemetry Enhancements** (MAVLink protocol, bi-directional)
+- [ ] 48. **Bootloader** (firmware update capability via UART/USB)
+
+## Phase 9: Architecture Improvements (⬜ Planned)
+- [ ] 49. **Hardware Abstraction Layer** (board-specific pin mappings, ports)
+- [ ] 50. **RTOS Integration** (FreeRTOS task management, priorities)
+- [ ] 51. **Interrupt-Driven Sensor Pipeline** (DMA + interrupt for all sensors)
+- [ ] 52. **DMA for UART TX/RX** (non-blocking communication)
+- [ ] 53. **DMA for ADC** (continuous conversion with double-buffer)
+
+## Phase 10: Testing & CI (⬜ Planned)
+- [ ] 54. **Unit Tests for All Drivers** (UART, I2C, ADC, GPIO, PWM, SystemClock)
+- [ ] 55. **Integration Tests** (end-to-end flight scenarios)
+- [ ] 56. **HIL Testing** (hardware-in-the-loop simulation)
+- [ ] 57. **Continuous Integration** (GitHub Actions, automated builds & tests)
+
 ## Summary
-| Phase | Status | Files |
+| Phase | Status | Count |
 |-------|--------|-------|
-| Phase 1: Core Drivers | ✅ 7/7 | system_clock, i2c, uart, adc, gpio, mpu6050, pwm |
-| Phase 2: Control | ✅ 3/3 | pid, flight_controller, command_receiver |
-| Phase 3: Advanced | ✅ 4/4 | telemetry, autonomy, error_manager, led_status |
-| Phase 4: Integration | ✅ 1/1 | drone_app |
-| **Total** | **✅ 15/15** | |
+| Phase 1: Core Drivers | ✅ 7/7 |  |
+| Phase 2: Control Components | ✅ 3/3 |  |
+| Phase 3: Advanced Systems | ✅ 4/4 |  |
+| Phase 4: Application Integration | ✅ 1/1 |  |
+| Phase 5: Additional Hardware Drivers | ⬜ 0/12 |  |
+| Phase 6: Advanced Estimation & Control | ⬜ 0/8 |  |
+| Phase 7: Safety & Failsafe Systems | ⬜ 0/8 |  |
+| Phase 8: Data & Configuration | ⬜ 0/5 |  |
+| Phase 9: Architecture Improvements | ⬜ 0/5 |  |
+| Phase 10: Testing & CI | ⬜ 0/4 |  |
+| **Total** | **✅ 15/57** | |
