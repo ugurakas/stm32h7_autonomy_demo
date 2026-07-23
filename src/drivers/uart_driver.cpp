@@ -59,8 +59,10 @@ namespace {
     constexpr uint32_t RCC_APB1LENR_UART7 = (1U << 30U);
     constexpr uint32_t RCC_APB1LENR_UART8 = (1U << 31U);
     
+    // STM32H7 RCC register map (RM0433):
+    // RCC_APB1LENR1 = 0x58024464, RCC_APB2ENR = 0x580244A0, RCC_AHB4ENR = 0x580244E0
     volatile uint32_t& RCC_APB1LENR = *reinterpret_cast<volatile uint32_t*>(0x58024464UL);
-// RCC_APB2ENR for USART1,6:
+    volatile uint32_t& RCC_APB2ENR = *reinterpret_cast<volatile uint32_t*>(0x580244A0UL);
     volatile uint32_t& RCC_AHB4ENR = *reinterpret_cast<volatile uint32_t*>(0x580244E0UL);
 }
 
