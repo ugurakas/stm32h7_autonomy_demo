@@ -1,6 +1,8 @@
 # STM32H7 Autonomy Demo - Implementation Progress
 
-## Phase 1: Core Drivers (✅ Complete)
+## 🟢 STAGE 1: Base Drone Platform (Existing Project)
+
+### Phase 1: Core Drivers (✅ Complete)
 - [x] 1. System Clock @400MHz (HSE+PLL, VOS0, Flash 4WS, SysTick)
 - [x] 2. I2C Driver (register-level, 4 instances, error handling)
 - [x] 3. MPU6050 IMU Driver (I2C-based, full init/read, self-test)
@@ -9,7 +11,7 @@
 - [x] 6. ADC Battery Driver (voltage/battery reading, calibration)
 - [x] 7. GPIO LED/Button Driver (register-level, AF config)
 
-## Phase 2: Improved Control Components (✅ Complete)
+### Phase 2: Improved Control Components (✅ Complete)
 - [x] 8. PID Controller with Anti-windup
     - ✅ Output clamping with integral back-calculation
     - ✅ Integral limits (anti-windup)
@@ -26,7 +28,7 @@
     - ✅ Full attitude packet parsing (16 bytes + CRC)
     - ✅ Packet statistics (valid/invalid counts)
 
-## Phase 3: Advanced Systems (✅ Complete)
+### Phase 3: Advanced Systems (✅ Complete)
 - [x] 11. Telemetry Link (real UART-based)
     - ✅ Framed protocol with start marker, length, CRC
     - ✅ 10Hz telemetry output
@@ -46,7 +48,7 @@
     - ✅ Multiple patterns: solid, blink, heartbeat, double/triple blink
     - ✅ Auto-pattern based on system state (armed, fault, battery, autonomous)
 
-## Phase 4: Application Integration (✅ Complete)
+### Phase 4: Application Integration (✅ Complete)
 - [x] 15. Drone Application Integration
     - ✅ Full main loop at ~1kHz
     - ✅ Sensor fusion (IMU + ADC battery)
@@ -59,7 +61,7 @@
     - ✅ Error manager integration
     - ✅ Battery voltage monitoring with low-battery failsafe
 
-## Phase 5: Additional Hardware Drivers (⬜ Planned)
+### Phase 5: Additional Hardware Drivers (⬜ Planned)
 - [ ] 16. **SPI Driver** (register-level, multiple instances, DMA support)
 - [ ] 17. **DMA Controller Driver** (memory-to-peripheral, peripheral-to-memory)
 - [ ] 18. **External Interrupt Driver** (EXTI lines, callback registration)
@@ -73,7 +75,7 @@
 - [ ] 26. **Buzzer Driver** (PWM-driven tones and alarm melodies)
 - [ ] 27. **Flash/EEPROM Emulation Driver** (STM32H7 flash for config persistence)
 
-## Phase 6: Advanced Estimation & Control (⬜ Planned)
+### Phase 6: Advanced Estimation & Control (⬜ Planned)
 - [ ] 28. **AHRS/Attitude Estimator** (Mahony/Madgwick filter for roll/pitch/yaw)
 - [ ] 29. **Sensor Fusion Module** (IMU + Barometer + Magnetometer + GPS fusion)
 - [ ] 30. **Position Controller** (GPS waypoint navigation, loiter mode)
@@ -83,7 +85,7 @@
 - [ ] 34. **Dynamic PID Tuning** (auto-tune, gain scheduling by flight mode)
 - [ ] 35. **ESC Calibration Routine** (ESC arming, throttle calibration sequence)
 
-## Phase 7: Safety & Failsafe Systems (⬜ Planned)
+### Phase 7: Safety & Failsafe Systems (⬜ Planned)
 - [ ] 36. **Pre-arm Safety Checks** (voltage, calibration, sensor health)
 - [ ] 37. **Arm Safety Switch** (stick gesture or button combo to arm)
 - [ ] 38. **Watchdog Timer** (independent IWDG, system reset on hang)
@@ -93,27 +95,32 @@
 - [ ] 42. **Kill Switch** (instant motor stop via RC channel or button)
 - [ ] 43. **Thermal Protection** (temperature monitoring, throttle limiting)
 
-## Phase 8: Data & Configuration Systems (⬜ Planned)
+### Phase 8: Data & Configuration Systems (⬜ Planned)
 - [ ] 44. **Parameter System** (tunable PID gains, calibration values)
 - [ ] 45. **Configuration Storage** (Flash/EEPROM read/write for persistence)
 - [ ] 46. **Data Logger / Blackbox** (SD card or flash logging of flight data)
 - [ ] 47. **Telemetry Enhancements** (MAVLink protocol, bi-directional)
 - [ ] 48. **Bootloader** (firmware update capability via UART/USB)
 
-## Phase 9: Architecture Improvements (⬜ Planned)
+### Phase 9: Architecture Improvements (⬜ Planned)
 - [ ] 49. **Hardware Abstraction Layer** (board-specific pin mappings, ports)
 - [ ] 50. **RTOS Integration** (FreeRTOS task management, priorities)
 - [ ] 51. **Interrupt-Driven Sensor Pipeline** (DMA + interrupt for all sensors)
 - [ ] 52. **DMA for UART TX/RX** (non-blocking communication)
 - [ ] 53. **DMA for ADC** (continuous conversion with double-buffer)
 
-## Phase 10: Testing & CI (⬜ Planned)
+### Phase 10: Testing & CI (⬜ Planned)
 - [ ] 54. **Unit Tests for All Drivers** (UART, I2C, ADC, GPIO, PWM, SystemClock)
 - [ ] 55. **Integration Tests** (end-to-end flight scenarios)
 - [ ] 56. **HIL Testing** (hardware-in-the-loop simulation)
 - [ ] 57. **Continuous Integration** (GitHub Actions, automated builds & tests)
 
-## Phase 11: Camera & Video Pipeline 🎥 (⬜ Planned)
+---
+
+## 🟢 STAGE 2: Autonomous Vision Drone Project
+> **Goal:** Fully autonomous drone that streams live camera feed to a user app and performs real-time image processing to detect and follow a targeted object.
+
+### Stage 2 — Phase 1: Hardware Enablement 🎥 (⬜ Planned)
 - [ ] 58. **DCMI Camera Driver** — Digital Camera Interface for STM32H7
     - Register-level DCMI config for parallel sensors (OV2640/OV5640)
     - VSYNC/HSYNC/PIXCLK timing, cropping, windowing
@@ -145,7 +152,7 @@
     - Telemetry packets drone → app (battery, GPS, altitude)
     - Priority: commands > telemetry > video
 
-## Phase 12: Onboard Image Processing & Object Detection 🧠 (⬜ Planned)
+### Stage 2 — Phase 2: Object Detection & Image Processing 🧠 (⬜ Planned)
 - [ ] 66. **Color-Based Object Detection** — Fast HSV thresholding
     - HSV color threshold → morphological ops → contour detection
     - Bounding box compute (center X/Y, width, height)
@@ -169,7 +176,7 @@
     - Process only around tracked object (60-80% load reduction)
     - ROI expands on low confidence, shrinks on high confidence
 
-## Phase 13: Autonomous Target Following & Control 🎯 (⬜ Planned)
+### Stage 2 — Phase 3: Autonomous Target Following & Control 🎯 (⬜ Planned)
 - [ ] 73. **Visual Servoing Controller** — Position-based (PBVS)
     - Object pixel error → yaw rate / pitch / throttle commands
     - X-error → yaw, Y-error → pitch/altitude
@@ -198,7 +205,7 @@
     - Altitude gain to clear obstacles
     - Auto-land + geofence enforcement (100m max)
 
-## Phase 14: Mobile / Desktop User Application 📱 (⬜ Planned)
+### Stage 2 — Phase 4: Mobile / Desktop User Application 📱 (⬜ Planned)
 - [ ] 80. **Live Video Viewer** — MJPEG/UDP stream decoding
     - Hardware-accelerated rendering (Metal / OpenGL ES)
     - FPS counter, resolution indicator, latency bar
@@ -224,7 +231,7 @@
 - [ ] 88. **Companion Backend Server** (optional)
     - WebRTC signaling, telemetry relay, multi-drone REST API
 
-## Phase 15: Vision System Integration & Testing 🧪 (⬜ Planned)
+### Stage 2 — Phase 5: Vision System Integration & Testing 🧪 (⬜ Planned)
 - [ ] 89. **Camera + ESP32 Hardware Integration** — Physical assembly
     - OV2640/OV5640 wiring (DCMI + I2C), ESP32 (UART + power)
     - Power budgeting, EMI shielding
@@ -244,22 +251,26 @@
     - Obstacle avoidance collision, geofence boundary
     - Kill switch, low-battery auto-land, comm loss behavior
 
+---
+
 ## Summary
-| Phase | Status | Count |
+| Stage | Status | Count |
 |-------|--------|-------|
-| Phase 1: Core Drivers | ✅ 7/7 |  |
-| Phase 2: Control Components | ✅ 3/3 |  |
-| Phase 3: Advanced Systems | ✅ 4/4 |  |
-| Phase 4: Application Integration | ✅ 1/1 |  |
-| Phase 5: Additional Hardware Drivers | ⬜ 0/12 |  |
-| Phase 6: Advanced Estimation & Control | ⬜ 0/8 |  |
-| Phase 7: Safety & Failsafe Systems | ⬜ 0/8 |  |
-| Phase 8: Data & Configuration | ⬜ 0/5 |  |
-| Phase 9: Architecture Improvements | ⬜ 0/5 |  |
-| Phase 10: Testing & CI | ⬜ 0/4 |  |
-| Phase 11: Camera & Video Pipeline | ⬜ 0/8 |  |
-| Phase 12: Onboard Image Processing & Detection | ⬜ 0/7 |  |
-| Phase 13: Autonomous Target Following & Control | ⬜ 0/7 |  |
-| Phase 14: Mobile/Desktop User Application | ⬜ 0/9 |  |
-| Phase 15: Vision System Integration & Testing | ⬜ 0/6 |  |
+| **Stage 1: Base Drone Platform** | ✅ **15/57** | |
+| ├ Phase 1: Core Drivers | ✅ 7/7 |  |
+| ├ Phase 2: Control Components | ✅ 3/3 |  |
+| ├ Phase 3: Advanced Systems | ✅ 4/4 |  |
+| ├ Phase 4: Application Integration | ✅ 1/1 |  |
+| ├ Phase 5: Additional Hardware Drivers | ⬜ 0/12 |  |
+| ├ Phase 6: Advanced Estimation & Control | ⬜ 0/8 |  |
+| ├ Phase 7: Safety & Failsafe Systems | ⬜ 0/8 |  |
+| ├ Phase 8: Data & Configuration | ⬜ 0/5 |  |
+| ├ Phase 9: Architecture Improvements | ⬜ 0/5 |  |
+| └ Phase 10: Testing & CI | ⬜ 0/4 |  |
+| **Stage 2: Autonomous Vision Drone** | ⬜ **0/37** | |
+| ├ Phase 1: Hardware Enablement | ⬜ 0/8 |  |
+| ├ Phase 2: Object Detection & Image Processing | ⬜ 0/7 |  |
+| ├ Phase 3: Target Following & Control | ⬜ 0/7 |  |
+| ├ Phase 4: User Application | ⬜ 0/9 |  |
+| └ Phase 5: Integration & Testing | ⬜ 0/6 |  |
 | **Total** | **✅ 15/94** | |
