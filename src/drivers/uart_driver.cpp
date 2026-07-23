@@ -1,3 +1,22 @@
+/**
+ * @file    uart_driver.cpp
+ * @brief   Implementation of the STM32H7 UART/USART driver.
+ *
+ * @details Implements register-level UART operations:
+ *          - 8 instances: USART1–6, UART7–8
+ *          - Baud-rate generation via USART_BRR (fCK = 100 MHz)
+ *          - Configurable word length (7/8/9-bit), stop bits, parity
+ *          - Interrupt-driven RX with circular ring buffer
+ *          - Blocking TX with TXE + TC polling
+ *          - Polled RX with timeout and error detection
+ *          - DMA support stub (RX/TX)
+ *
+ *          RCC fix applied: RCC_APB2ENR = 0x580244A0 (RM0433 §5.8).
+ *          Register accesses conform to RM0433 §47.
+ *
+ * @ingroup drivers
+ */
+
 #include "drivers/uart_driver.hpp"
 
 #include <cstdint>
@@ -6,15 +25,17 @@
 namespace drone::drivers {
 
 namespace {
+    // ---- UART base addresses (RM0433 §2.3) ----
     constexpr uint32_t USART1_BASE = 0x40011000UL;
     constexpr uint32_t USART2_BASE = 0x40004400UL;
     constexpr uint32_t USART3_BASE = 0x40004800UL;
-    constexpr uint32_t UART4_BASE = 0x40004C00UL;
-    constexpr uint32_t UART5_BASE = 0x40005000UL;
+    constexpr uint32_t UART4_BASE  = 0x40004C00UL;
+    constexpr uint32_t UART5_BASE  = 0x40005000UL;
     constexpr uint32_t USART6_BASE = 0x40011400UL;
-    constexpr uint32_t UART7_BASE = 0x40007800UL;
-    constexpr uint32_t UART8_BASE = 0x40007C00UL;
-    
+    constexpr uint32_t UART7_BASE  = 0x40007800UL;
+    constexpr uint32_t UART8_BASE  = 0x40007C00UL;
+
+    // ---- Register offsets (RM0433 §47.6) ----
     constexpr uint32_t USART_CR1_OFF = 0x00U;
     constexpr uint32_t USART_CR2_OFF = 0x04U;
     constexpr uint32_t USART_CR3_OFF = 0x08U;
@@ -23,48 +44,57 @@ namespace {
     constexpr uint32_t USART_ICR_OFF = 0x20U;
     constexpr uint32_t USART_RDR_OFF = 0x24U;
     constexpr uint32_t USART_TDR_OFF = 0x28U;
-    
-    constexpr uint32_t USART_CR1_UE = (1U << 0U);
-    constexpr uint32_t USART_CR1_RE = (1U << 2U);
-    constexpr uint32_t USART_CR1_TE = (1U << 3U);
-    constexpr uint32_t USART_CR1_RXNEIE = (1U << 5U);
-    constexpr uint32_t USART_CR1_TCIE = (1U << 6U);
-    constexpr uint32_t USART_CR1_PEIE = (1U << 8U);
-    constexpr uint32_t USART_CR1_M0 = (1U << 12U);
-    constexpr uint32_t USART_CR1_M1 = (1U << 28U);
-    
-    constexpr uint32_t USART_CR2_STOP_2 = (2U << 12U);
-    
-    constexpr uint32_t USART_CR3_DMAR = (1U << 6U);
-    constexpr uint32_t USART_CR3_DMAT = (1U << 7U);
-    
-    constexpr uint32_t USART_ISR_TXE = (1U << 7U);
-    constexpr uint32_t USART_ISR_TC = (1U << 6U);
-    constexpr uint32_t USART_ISR_RXNE = (1U << 5U);
-    constexpr uint32_t USART_ISR_ORE = (1U << 3U);
-    constexpr uint32_t USART_ISR_FE = (1U << 1U);
-    constexpr uint32_t USART_ISR_PE = (1U << 0U);
-    
-    constexpr uint32_t USART_ICR_TCCF = (1U << 6U);
-    constexpr uint32_t USART_ICR_ORECF = (1U << 3U);
-    constexpr uint32_t USART_ICR_FECF = (1U << 1U);
-    constexpr uint32_t USART_ICR_PECF = (1U << 0U);
-    
-    constexpr uint32_t RCC_APB2ENR_USART1 = (1U << 4U);
-    constexpr uint32_t RCC_APB2ENR_USART6 = (1U << 5U);
-    constexpr uint32_t RCC_APB1LENR_USART2 = (1U << 17U);
-    constexpr uint32_t RCC_APB1LENR_USART3 = (1U << 18U);
-    constexpr uint32_t RCC_APB1LENR_UART4 = (1U << 19U);
-    constexpr uint32_t RCC_APB1LENR_UART5 = (1U << 20U);
-    constexpr uint32_t RCC_APB1LENR_UART7 = (1U << 30U);
-    constexpr uint32_t RCC_APB1LENR_UART8 = (1U << 31U);
-    
-    // STM32H7 RCC register map (RM0433):
-    // RCC_APB1LENR1 = 0x58024464, RCC_APB2ENR = 0x580244A0, RCC_AHB4ENR = 0x580244E0
+
+    // ---- CR1 bits ----
+    constexpr uint32_t USART_CR1_UE      = (1U << 0U);   ///< USART enable
+    constexpr uint32_t USART_CR1_RE      = (1U << 2U);   ///< Receiver enable
+    constexpr uint32_t USART_CR1_TE      = (1U << 3U);   ///< Transmitter enable
+    constexpr uint32_t USART_CR1_RXNEIE  = (1U << 5U);   ///< RX not empty interrupt
+    constexpr uint32_t USART_CR1_TCIE    = (1U << 6U);   ///< Transmission complete interrupt
+    constexpr uint32_t USART_CR1_PEIE    = (1U << 8U);   ///< Parity error interrupt
+    constexpr uint32_t USART_CR1_M0      = (1U << 12U);  ///< Word length bit 0
+    constexpr uint32_t USART_CR1_M1      = (1U << 28U);  ///< Word length bit 1
+
+    // ---- CR2 bits ----
+    constexpr uint32_t USART_CR2_STOP_2  = (2U << 12U);  ///< 2 stop bits
+
+    // ---- CR3 bits ----
+    constexpr uint32_t USART_CR3_DMAR    = (1U << 6U);   ///< RX DMA enable
+    constexpr uint32_t USART_CR3_DMAT    = (1U << 7U);   ///< TX DMA enable
+
+    // ---- ISR bits ----
+    constexpr uint32_t USART_ISR_TXE     = (1U << 7U);   ///< TX data register empty
+    constexpr uint32_t USART_ISR_TC      = (1U << 6U);   ///< Transmission complete
+    constexpr uint32_t USART_ISR_RXNE    = (1U << 5U);   ///< RX data register not empty
+    constexpr uint32_t USART_ISR_ORE     = (1U << 3U);   ///< Overrun error
+    constexpr uint32_t USART_ISR_FE      = (1U << 1U);   ///< Framing error
+    constexpr uint32_t USART_ISR_PE      = (1U << 0U);   ///< Parity error
+
+    // ---- ICR flags ----
+    constexpr uint32_t USART_ICR_TCCF    = (1U << 6U);
+    constexpr uint32_t USART_ICR_ORECF   = (1U << 3U);
+    constexpr uint32_t USART_ICR_FECF    = (1U << 1U);
+    constexpr uint32_t USART_ICR_PECF    = (1U << 0U);
+
+    // ---- RCC clock enable bits ----
+    constexpr uint32_t RCC_APB2ENR_USART1   = (1U << 4U);   ///< USART1 on APB2
+    constexpr uint32_t RCC_APB2ENR_USART6   = (1U << 5U);   ///< USART6 on APB2
+    constexpr uint32_t RCC_APB1LENR_USART2  = (1U << 17U);  ///< USART2 on APB1L
+    constexpr uint32_t RCC_APB1LENR_USART3  = (1U << 18U);  ///< USART3 on APB1L
+    constexpr uint32_t RCC_APB1LENR_UART4   = (1U << 19U);  ///< UART4 on APB1L
+    constexpr uint32_t RCC_APB1LENR_UART5   = (1U << 20U);  ///< UART5 on APB1L
+    constexpr uint32_t RCC_APB1LENR_UART7   = (1U << 30U);  ///< UART7 on APB1L
+    constexpr uint32_t RCC_APB1LENR_UART8   = (1U << 31U);  ///< UART8 on APB1L
+
+    // RCC register addresses — RM0433 §5.8
     volatile uint32_t& RCC_APB1LENR = *reinterpret_cast<volatile uint32_t*>(0x58024464UL);
-    volatile uint32_t& RCC_APB2ENR = *reinterpret_cast<volatile uint32_t*>(0x580244A0UL);
-    volatile uint32_t& RCC_AHB4ENR = *reinterpret_cast<volatile uint32_t*>(0x580244E0UL);
+    volatile uint32_t& RCC_APB2ENR  = *reinterpret_cast<volatile uint32_t*>(0x580244A0UL);
+    volatile uint32_t& RCC_AHB4ENR  = *reinterpret_cast<volatile uint32_t*>(0x580244E0UL);
 }
+
+// ============================================================================
+//  Constructor / Destructor
+// ============================================================================
 
 UartDriver::UartDriver(uint32_t instance)
     : instance_(instance), initialized_(false), config_(),
@@ -78,32 +108,39 @@ UartDriver::~UartDriver() {
     delete[] rxBuffer_;
 }
 
+// ============================================================================
+//  init / deinit
+// ============================================================================
+
 UartDriver::Result UartDriver::init(const UartConfig& config) {
     if (initialized_) {
         return Result::ErrorBusy;
     }
-    
+
     config_ = config;
     rxBufferSize_ = config_.rxBufferSize;
-    
+
     delete[] rxBuffer_;
     rxBuffer_ = new uint8_t[rxBufferSize_];
     rxHead_ = 0;
     rxTail_ = 0;
-    
+
     enableClock();
     configureGpio();
-    
+
     volatile uint32_t* base = getBaseAddr();
     if (!base) {
         return Result::ErrorInvalidParam;
     }
-    
+
+    // Disable USART during configuration
     base[USART_CR1_OFF / 4U] = 0;
-    
+
+    // Set baud rate (fCK = 100 MHz for APB1/APB2)
     uint32_t brr = 100000000UL / config_.baudrate;
     base[USART_BRR_OFF / 4U] = brr;
-    
+
+    // Configure word length, enable TX/RX
     uint32_t cr1 = USART_CR1_RE | USART_CR1_TE;
     if (config_.wordLength == 9) {
         cr1 |= USART_CR1_M0;
@@ -111,13 +148,15 @@ UartDriver::Result UartDriver::init(const UartConfig& config) {
         cr1 |= USART_CR1_M1;
     }
     base[USART_CR1_OFF / 4U] = cr1;
-    
+
+    // Configure stop bits
     uint32_t cr2 = 0;
     if (config_.stopBits == 2) {
         cr2 |= USART_CR2_STOP_2;
     }
     base[USART_CR2_OFF / 4U] = cr2;
-    
+
+    // Configure DMA
     uint32_t cr3 = 0;
     if (config_.useRxDma) {
         cr3 |= USART_CR3_DMAR;
@@ -126,11 +165,14 @@ UartDriver::Result UartDriver::init(const UartConfig& config) {
         cr3 |= USART_CR3_DMAT;
     }
     base[USART_CR3_OFF / 4U] = cr3;
-    
+
+    // Clear all interrupt flags
     base[USART_ICR_OFF / 4U] = 0xFFFFFFFFU;
+
+    // Enable RXNE interrupt and USART
     base[USART_CR1_OFF / 4U] |= USART_CR1_RXNEIE;
     base[USART_CR1_OFF / 4U] |= USART_CR1_UE;
-    
+
     initialized_ = true;
     return Result::Ok;
 }
@@ -147,10 +189,14 @@ UartDriver::Result UartDriver::deinit() {
     return Result::Ok;
 }
 
+// ============================================================================
+//  Transmit / Receive
+// ============================================================================
+
 UartDriver::Result UartDriver::transmit(const uint8_t* data, uint16_t size, uint32_t timeoutMs) {
     volatile uint32_t* base = getBaseAddr();
     if (!base || !data) return Result::ErrorInvalidParam;
-    
+
     for (uint16_t i = 0; i < size; ++i) {
         uint32_t timeout = timeoutMs * 1000;
         while (!(base[USART_ISR_OFF / 4U] & USART_ISR_TXE)) {
@@ -162,7 +208,8 @@ UartDriver::Result UartDriver::transmit(const uint8_t* data, uint16_t size, uint
         }
         base[USART_TDR_OFF / 4U] = data[i];
     }
-    
+
+    // Wait for transmission complete
     uint32_t timeout = timeoutMs * 1000;
     while (!(base[USART_ISR_OFF / 4U] & USART_ISR_TC)) {
         if (--timeout == 0) return Result::ErrorTimeout;
@@ -173,7 +220,7 @@ UartDriver::Result UartDriver::transmit(const uint8_t* data, uint16_t size, uint
 UartDriver::Result UartDriver::receive(uint8_t* data, uint16_t size, uint32_t timeoutMs) {
     volatile uint32_t* base = getBaseAddr();
     if (!base || !data) return Result::ErrorInvalidParam;
-    
+
     for (uint16_t i = 0; i < size; ++i) {
         uint32_t timeout = timeoutMs * 1000;
         while (!(base[USART_ISR_OFF / 4U] & USART_ISR_RXNE)) {
@@ -189,6 +236,10 @@ UartDriver::Result UartDriver::receive(uint8_t* data, uint16_t size, uint32_t ti
     }
     return Result::Ok;
 }
+
+// ============================================================================
+//  Ring-buffer helpers
+// ============================================================================
 
 uint16_t UartDriver::getRxAvailable() const {
     if (rxHead_ >= rxTail_) {
@@ -225,6 +276,10 @@ void UartDriver::onDataReceived(uint8_t byte) {
     }
 }
 
+// ============================================================================
+//  Register access helpers
+// ============================================================================
+
 volatile uint32_t* UartDriver::getBaseAddr() const {
     switch (instance_) {
         case 1: return reinterpret_cast<volatile uint32_t*>(USART1_BASE);
@@ -241,22 +296,24 @@ volatile uint32_t* UartDriver::getBaseAddr() const {
 
 void UartDriver::enableClock() {
     switch (instance_) {
-        case 1: RCC_APB2ENR |= RCC_APB2ENR_USART1; break;
+        case 1: RCC_APB2ENR  |= RCC_APB2ENR_USART1;  break;
         case 2: RCC_APB1LENR |= RCC_APB1LENR_USART2; break;
         case 3: RCC_APB1LENR |= RCC_APB1LENR_USART3; break;
-        case 4: RCC_APB1LENR |= RCC_APB1LENR_UART4; break;
-        case 5: RCC_APB1LENR |= RCC_APB1LENR_UART5; break;
-        case 6: RCC_APB2ENR |= RCC_APB2ENR_USART6; break;
-        case 7: RCC_APB1LENR |= RCC_APB1LENR_UART7; break;
-        case 8: RCC_APB1LENR |= RCC_APB1LENR_UART8; break;
+        case 4: RCC_APB1LENR |= RCC_APB1LENR_UART4;  break;
+        case 5: RCC_APB1LENR |= RCC_APB1LENR_UART5;  break;
+        case 6: RCC_APB2ENR  |= RCC_APB2ENR_USART6;  break;
+        case 7: RCC_APB1LENR |= RCC_APB1LENR_UART7;  break;
+        case 8: RCC_APB1LENR |= RCC_APB1LENR_UART8;  break;
     }
 }
 
 void UartDriver::configureGpio() {
+    // Enable GPIO port clocks A–E (AHB4ENR)
     RCC_AHB4ENR |= (1U << 0U) | (1U << 1U) | (1U << 2U) | (1U << 3U) | (1U << 4U);
 }
 
 uint32_t UartDriver::computeBaudDiv(uint32_t baudrate) const {
+    // fCK = 100 MHz (typical APB clock for UARTs)
     return 100000000UL / baudrate;
 }
 
