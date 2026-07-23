@@ -60,7 +60,7 @@ namespace {
     constexpr uint32_t RCC_APB1LENR_UART8 = (1U << 31U);
     
     volatile uint32_t& RCC_APB1LENR = *reinterpret_cast<volatile uint32_t*>(0x58024464UL);
-    volatile uint32_t& RCC_APB2ENR = *reinterpret_cast<volatile uint32_t*>(0x58024460UL);
+// RCC_APB2ENR for USART1,6:
     volatile uint32_t& RCC_AHB4ENR = *reinterpret_cast<volatile uint32_t*>(0x580244E0UL);
 }
 
