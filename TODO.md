@@ -113,6 +113,137 @@
 - [ ] 56. **HIL Testing** (hardware-in-the-loop simulation)
 - [ ] 57. **Continuous Integration** (GitHub Actions, automated builds & tests)
 
+## Phase 11: Camera & Video Pipeline 🎥 (⬜ Planned)
+- [ ] 58. **DCMI Camera Driver** — Digital Camera Interface for STM32H7
+    - Register-level DCMI config for parallel sensors (OV2640/OV5640)
+    - VSYNC/HSYNC/PIXCLK timing, cropping, windowing
+- [ ] 59. **Camera Sensor Driver (OV2640/OV5640)** — I2C-based sensor setup
+    - Resolution config (QVGA 320x240 / VGA 640x480)
+    - JPEG output mode for bandwidth efficiency
+    - FPS control (15-30 FPS)
+- [ ] 60. **DMA Double-Buffer for Camera** — Ping-pong frame capture
+    - DMA2 stream + DCMI configuration
+    - Zero-copy frame acquisition with frame-complete callback
+- [ ] 61. **ESP32/ESP8266 WiFi Module Driver** — UART AT command bridge
+    - WiFi station/AP mode, TCP/UDP sockets
+    - MJPEG streaming server on coprocessor
+    - OTA update channel
+- [ ] 62. **MJPEG Streaming Server** — HTTP-based video stream
+    - JPEG compression on STM32 or passthrough to ESP32
+    - Quality vs bandwidth tuning (10-90%)
+    - Multi-client support (2-3 concurrent)
+- [ ] 63. **Video Buffer Management** — Frame ring buffer
+    - 3-5 frame pool with drop policy on full
+    - Timestamp embedding per frame
+- [ ] 64. **Low-Latency Streaming Protocol** — UDP-based custom protocol
+    - RTP-like packetization with sequence numbers
+    - JPEG fragment over MTU (1460 bytes)
+    - NAK-based retransmission for keyframes
+- [ ] 65. **Bidirectional Command/Telemetry over WiFi** — Video + data mux
+    - Telemetry multiplexed over same WiFi link
+    - Command packets app → drone (target select, mode change)
+    - Telemetry packets drone → app (battery, GPS, altitude)
+    - Priority: commands > telemetry > video
+
+## Phase 12: Onboard Image Processing & Object Detection 🧠 (⬜ Planned)
+- [ ] 66. **Color-Based Object Detection** — Fast HSV thresholding
+    - HSV color threshold → morphological ops → contour detection
+    - Bounding box compute (center X/Y, width, height)
+- [ ] 67. **Object Tracking Kalman Filter** — State estimation
+    - Constant velocity model, prediction + update
+    - Handles 2-3 second occlusion gracefully
+- [ ] 68. **Feature-Based Tracking (Optical Flow)** — Lucas-Kanade
+    - Shi-Tomasi corner detection, sparse flow between frames
+    - Fallback to color detection on feature loss
+- [ ] 69. **CNN-Based Detection (TFLite Micro)** — Advanced AI detection
+    - Int8 quantized model deployment (~300KB)
+    - Person/face/car detection at 1-5 FPS with CMSIS-NN
+- [ ] 70. **Object Re-Identification** — Maintain target lock
+    - Color histogram + HOG feature vector extraction
+    - Similarity matching, confidence scoring, re-acquisition
+- [ ] 71. **Frame Preprocessing** — Before detection pipeline
+    - Color conversion (RGB↔HSV, RGB→Gray)
+    - Downscale to QVGA, histogram equalization
+    - Rolling shutter correction
+- [ ] 72. **ROI (Region of Interest) Tracking** — Optimized processing
+    - Process only around tracked object (60-80% load reduction)
+    - ROI expands on low confidence, shrinks on high confidence
+
+## Phase 13: Autonomous Target Following & Control 🎯 (⬜ Planned)
+- [ ] 73. **Visual Servoing Controller** — Position-based (PBVS)
+    - Object pixel error → yaw rate / pitch / throttle commands
+    - X-error → yaw, Y-error → pitch/altitude
+    - Object size → throttle (distance keeping)
+- [ ] 74. **Distance Keeping Logic** — Safe follow distance
+    - Estimate distance from object size or sonar
+    - Configurable follow distance (2m/5m/10m)
+    - Brake on stop, accelerate on move away
+- [ ] 75. **Vision-Guided Obstacle Avoidance** — Safety during follow
+    - Ultrasonic/ToF forward obstacle detection
+    - Pause follow + hover on obstacle < 2m
+    - Lateral avoidance then resume
+- [ ] 76. **Smooth Trajectory Generation** — Jerk-limited motion
+    - Minimum-jerk velocity commands
+    - Yaw/pitch/throttle rate limiting, low-pass filter
+- [ ] 77. **Target Acquisition & Search** — Find and lock
+    - 360° yaw scan while hovering
+    - Auto-start follow on acquisition
+    - Manual target selection via app tap
+- [ ] 78. **Target Loss Handling** — Graceful degradation
+    - 1s → expand search, 3s → return to last known pos
+    - 5s → abort follow + hover, notify app
+    - 10s → Return-to-Home
+- [ ] 79. **Return-to-Home (Vision-Enhanced)** — Safe return
+    - GPS-based position hold and return
+    - Altitude gain to clear obstacles
+    - Auto-land + geofence enforcement (100m max)
+
+## Phase 14: Mobile / Desktop User Application 📱 (⬜ Planned)
+- [ ] 80. **Live Video Viewer** — MJPEG/UDP stream decoding
+    - Hardware-accelerated rendering (Metal / OpenGL ES)
+    - FPS counter, resolution indicator, latency bar
+- [ ] 81. **Telemetry Dashboard** — Real-time data overlay
+    - Battery %, altitude, GPS + map, flight mode
+    - RSSI signal strength, connection status
+- [ ] 82. **Touch-to-Track** — User selects target on video
+    - Tap → send coords to drone, bounding box feedback
+    - Double-tap to release target
+- [ ] 83. **Flight Controls Overlay** — Manual override UI
+    - Virtual joysticks (yaw/throttle + pitch/roll)
+    - Arm/Disarm, Takeoff/Land/Hold, Kill Switch
+    - Autonomous mode toggle
+- [ ] 84. **Video Recording & Capture** — Save flight footage
+    - Record video to device, snapshot capture (JPEG)
+    - Geotagging for captured media
+- [ ] 85. **iOS Application** (Swift/SwiftUI + Metal + AVFoundation)
+    - MJPEG parser, Metal rendering, CoreLocation map
+- [ ] 86. **Android Application** (Kotlin/Jetpack Compose)
+    - MJPEG parser, SurfaceView rendering, Fused Location
+- [ ] 87. **Web/Desktop Application** (React + Electron)
+    - WebSocket MJPEG, Canvas rendering, Leaflet map
+- [ ] 88. **Companion Backend Server** (optional)
+    - WebRTC signaling, telemetry relay, multi-drone REST API
+
+## Phase 15: Vision System Integration & Testing 🧪 (⬜ Planned)
+- [ ] 89. **Camera + ESP32 Hardware Integration** — Physical assembly
+    - OV2640/OV5640 wiring (DCMI + I2C), ESP32 (UART + power)
+    - Power budgeting, EMI shielding
+- [ ] 90. **End-to-End Video Pipeline** — Sensor → App
+    - Camera capture @ 15 FPS → DMA → JPEG → WiFi → App
+    - Target: <200ms end-to-end latency
+- [ ] 91. **Sensor Fusion with Vision** — IMU + GPS + Camera
+    - IMU horizon stabilization, GPS geo-referencing
+    - Camera optical flow for VIO velocity estimation
+- [ ] 92. **Ground Testing (Vision)**
+    - WiFi range test, detection accuracy (various lighting)
+    - Latency measurement, power profiling
+- [ ] 93. **Flight Testing (Vision)**
+    - Follow slow/fast targets, target loss & re-acquisition
+    - RTH failsafe, battery endurance with camera+WiFi
+- [ ] 94. **Safety Validation (Vision)**
+    - Obstacle avoidance collision, geofence boundary
+    - Kill switch, low-battery auto-land, comm loss behavior
+
 ## Summary
 | Phase | Status | Count |
 |-------|--------|-------|
@@ -126,4 +257,9 @@
 | Phase 8: Data & Configuration | ⬜ 0/5 |  |
 | Phase 9: Architecture Improvements | ⬜ 0/5 |  |
 | Phase 10: Testing & CI | ⬜ 0/4 |  |
-| **Total** | **✅ 15/57** | |
+| Phase 11: Camera & Video Pipeline | ⬜ 0/8 |  |
+| Phase 12: Onboard Image Processing & Detection | ⬜ 0/7 |  |
+| Phase 13: Autonomous Target Following & Control | ⬜ 0/7 |  |
+| Phase 14: Mobile/Desktop User Application | ⬜ 0/9 |  |
+| Phase 15: Vision System Integration & Testing | ⬜ 0/6 |  |
+| **Total** | **✅ 15/94** | |
