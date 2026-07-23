@@ -1,1 +1,7 @@
 .pio
+renode/uart4_log.txt
+.DS_Store
+*.user
+*.swp
+*.swo
+.vscode/

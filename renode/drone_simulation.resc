@@ -1,0 +1,78 @@
+# =============================================================================
+#  STM32H7 Autonomy Demo — Renode Simulation Script
+# =============================================================================
+#
+# Usage:
+#   > renode drone_simulation.resc
+#
+# Prerequisites:
+#   - Renode v1.14+ (https://renode.io)
+#   - Firmware ELF at ../.pio/build/nucleo_h743zi/firmware.elf
+#
+# Simulated peripherals:
+#   UART4 @ 0x40004C00  -> debug / telemetry console
+#   TIM2  @ 0x40000000  -> PWM motor outputs
+#   I2C1  @ 0x40012000  -> MPU6050 IMU
+#   ADC1  @ 0x40022000  -> battery voltage
+#   GPIOA..G             -> LEDs, button, motor PWM AF
+# =============================================================================
+
+# --- Create the machine from the platform definition ---
+machine Machine {
+    name "stm32h753_drone"
+    platform "stm32h753.repl"
+}
+
+# --- Load the firmware ELF ---
+# Ensure the ELF exists — build with: pio run
+$elf = @../.pio/build/nucleo_h743zi/firmware.elf
+sysbus LoadELF $elf
+
+# --- Set up simulation helpers ---
+
+# Connect UART4 (telemetry/debug) to a terminal
+machine.uart4_terminal: Terminal.Terminal
+machine.uart4_terminal Create
+machine SetBaudRate 115200
+uart4 Connect $machine.uart4_terminal
+
+# Connect UART4 to file log for analysis
+uart4_log: FileLog @ "uart4_log.txt"
+uart4 Connect $uart4_log
+
+# --- Add virtual sensors via I2C ---
+
+# MPU6050 IMU on I2C1, address 0x68
+# (Renode stock MPU6050 model responds on the I2C bus)
+i2c1 RegisterDevice 0x68 "i2c_mpu6050"
+i2c_mpu6050 AccelRange 2
+i2c_mpu6050 GyroRange 250
+
+# --- GPIO monitors for debug ---
+gpioa MonitorPin 5    # User LED (PA5) — pulse on boot
+gpioc MonitorPin 13   # User button (PC13, active low)
+gpiob MonitorPin 0    # RGB Green
+gpiob MonitorPin 7    # RGB Blue
+gpiob MonitorPin 14   # RGB Red
+
+# --- ADC voltages (battery simulation) ---
+adc1 InjectSample 0 2.5   # Battery = 12.5 V (divider = 2.0)
+adc1 InjectSample 1 1.65  # VREFINT = 1.65 V (for VREF calibration)
+
+# --- Start simulation ---
+start
+
+# --- Print banner ---
+log "============================================"
+log "  STM32H7 AUTONOMY DEMO — RENODE SIMULATION"
+log "============================================"
+log "  UART4 telemetry:        connected"
+log "  MPU6050 (I2C1 0x68):    registered"
+log "  ADC1 battery:           @ 12.5 V"
+log "  LED (PA5):              toggling at boot"
+log "  Button (PC13):          pull-up, active low"
+log "============================================"
+log "  Send 'arm' over UART4 to arm the drone."
+log "  Send 'takeoff' to initiate takeoff."
+log "============================================"
+

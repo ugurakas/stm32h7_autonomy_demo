@@ -1,0 +1,121 @@
+/*
+ * Renode platform definition for STM32H753XI (Nucleo-H753ZI)
+ *
+ * Based on RM0433 (STM32H7x3 reference manual) and the
+ * STM32H743 platform definitions shipped with Renode.
+ *
+ * Peripherals:
+ *   - UART4 (used as debug/telemetry console) @ 0x40004C00
+ *   - TIM2  (PWM motor outputs)             @ 0x40000000
+ *   - I2C1  (MPU6050 IMU sensor bus)        @ 0x40012000
+ *   - ADC1  (battery voltage)               @ 0x40022000
+ *   - GPIOA..K                              @ 0x58020000..0x58022800
+ *   - FLASH                                 @ 0x52002000
+ *   - RCC   (Reset & Clock Control)         @ 0x58024400
+ *   - SYSTICK                               @ 0xE000E010
+ *
+ * Memory map:
+ *   FLASH  : 0x08000000 - 0x080FFFFF (2 MB, excluding option bytes)
+ *   SRAM   : 0x24000000 - 0x2407FFFF (512 KB AXI SRAM)
+ *   SRAM   : 0x30000000 - 0x3003FFFF (256 KB SRAM1)
+ *   SRAM   : 0x30040000 - 0x3007FFFF (256 KB SRAM2)
+ *   SRAM   : 0x38000000 - 0x3800FFFF (64 KB SRAM4 / backup)
+ */
+
+flash: Storage.MappedMemory @ sysbus 0x08000000
+    size: 0x00100000  /* 1 MB for the firmware */
+    segmentSize: 0x10000
+
+sram_axi: Storage.MappedMemory @ sysbus 0x24000000
+    size: 0x00080000  /* 512 KB */
+
+sram1: Storage.MappedMemory @ sysbus 0x30000000
+    size: 0x00040000  /* 256 KB */
+
+sram2: Storage.MappedMemory @ sysbus 0x30040000
+    size: 0x00040000  /* 256 KB */
+
+sram4: Storage.MappedMemory @ sysbus 0x38000000
+    size: 0x00010000  /* 64 KB */
+
+/* --------------------- UART4 (debug / telemetry console) ------------------- */
+uart4: UART.STM32_UART @ sysbus 0x40004C00
+    -> uart4_irq: 0x00000052  /* IRQ 52 (UART4 global) */
+    -> uart4_tx_irq: 0x00000052
+    -> uart4_rx_irq: 0x00000052
+    -> uart4_er_irq: 0x00000052
+    ParityBit: 0
+    enabled: true
+
+/* --------------------- TIM2 (PWM motor outputs) ---------------------------- */
+timer2: Timers.STM32_Timer @ sysbus 0x40000000
+    -> timer2_irq: 0x0000001C  /* IRQ 28 (TIM2 global) */
+    Frequency: 100000000       /* APB1 timer clock */
+    enabled: true
+
+/* --------------------- I2C1 (IMU sensor bus) ------------------------------- */
+i2c1: I2C.STM32_I2C @ sysbus 0x40012000
+    -> i2c1_irq: 0x00000023  /* IRQ 35 (I2C1 event) */
+    -> i2c1_er_irq: 0x00000024  /* IRQ 36 (I2C1 error) */
+    enabled: true
+
+/* --------------------- MPU6050 on I2C1 (address 0x68) ---------------------- */
+mpu6050_i2c: I2C.MPUGyro @ sysbus 0x40012000
+    address: 0x68
+    -> i2c1
+    enabled: false  /* enabled dynamically by i2c1 */
+
+/* --------------------- ADC1 (battery voltage) ------------------------------ */
+adc1: ADC.STM32_ADC @ sysbus 0x40022000
+    -> adc1_irq: 0x00000012  /* IRQ 18 (ADC1/2/3) */
+    enabled: true
+
+/* --------------------- GPIOs ------------------------------------------------- */
+gpioa: GPIO.STM32_GPIO @ sysbus 0x58020000
+    -> gpioa_irq: 0x00000010  /* IRQ 16 (EXTI0) */
+    -> gpioa_pin_irq: 0x00000011..0x00000017
+    NumberOfPins: 16
+    enabled: true
+
+gpiob: GPIO.STM32_GPIO @ sysbus 0x58020400
+    -> gpiob_irq: 0x00000010
+    -> gpiob_pin_irq: 0x00000011..0x00000017
+    NumberOfPins: 16
+    enabled: true
+
+gpioc: GPIO.STM32_GPIO @ sysbus 0x58020800
+    -> gpioc_irq: 0x00000010
+    -> gpioc_pin_irq: 0x00000011..0x00000017
+    NumberOfPins: 16
+    enabled: true
+
+gpiod: GPIO.STM32_GPIO @ sysbus 0x58020C00
+    -> gpiod_irq: 0x00000010
+    -> gpiod_pin_irq: 0x00000011..0x00000017
+    NumberOfPins: 16
+    enabled: true
+
+gpioe: GPIO.STM32_GPIO @ sysbus 0x58021000
+    -> gpioe_irq: 0x00000010
+    -> gpioe_pin_irq: 0x00000011..0x00000017
+    NumberOfPins: 16
+    enabled: true
+
+gpiog: GPIO.STM32_GPIO @ sysbus 0x58021800
+    -> gpiog_irq: 0x00000010
+    -> gpiog_pin_irq: 0x00000011..0x00000017
+    NumberOfPins: 16
+    enabled: true
+
+/* --------------------- RCC (Reset & Clock Control) ------------------------- */
+rcc: Misc.STM32_RCC @ sysbus 0x58024400
+    enabled: true
+
+/* --------------------- Flash Controller ------------------------------------ */
+flashc: Misc.STM32_FLASH @ sysbus 0x52002000
+    enabled: true
+
+/* --------------------- NVIC & System Control Block ------------------------- */
+nvic: Interrupts.CortexMVectorTable @ sysbus 0xE000E000
+    enabled: true
+
