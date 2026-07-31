@@ -86,9 +86,12 @@ namespace {
     constexpr uint32_t RCC_APB1LENR_UART7   = (1U << 30U);  ///< UART7 on APB1L
     constexpr uint32_t RCC_APB1LENR_UART8   = (1U << 31U);  ///< UART8 on APB1L
 
-    // RCC register addresses — RM0433 §5.8
-    volatile uint32_t& RCC_APB1LENR = *reinterpret_cast<volatile uint32_t*>(0x58024464UL);
-    volatile uint32_t& RCC_APB2ENR  = *reinterpret_cast<volatile uint32_t*>(0x580244A0UL);
+    // RCC register addresses — RM0433 §5.8. Offsets verified against the
+    // CMSIS RCC_TypeDef: APB1LENR=0xE8, APB2ENR=0xF0 (previously 0x60/0xA0,
+    // which meant these enable writes hit unrelated/reserved registers and
+    // the target UART's clock was never actually turned on).
+    volatile uint32_t& RCC_APB1LENR = *reinterpret_cast<volatile uint32_t*>(0x580244E8UL);
+    volatile uint32_t& RCC_APB2ENR  = *reinterpret_cast<volatile uint32_t*>(0x580244F0UL);
     volatile uint32_t& RCC_AHB4ENR  = *reinterpret_cast<volatile uint32_t*>(0x580244E0UL);
 }
 

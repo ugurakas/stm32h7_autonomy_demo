@@ -21,18 +21,18 @@ Stm32PwmMotorDriver::Stm32PwmMotorDriver(std::uint32_t timerChannel)
 }
 
 void Stm32PwmMotorDriver::init() {
-    Stm32PwmTimer timer;
-    timer.init();
-    (void)timer;
+    // Initialise the timer once and keep it as a member — the previous
+    // code constructed and re-initialised a brand new Stm32PwmTimer on
+    // every single setOutputs() call, re-running the hardware init
+    // sequence (and its 1 ms delay) at the control-loop rate.
+    timer_.init();
 }
 
 void Stm32PwmMotorDriver::setOutputs(const MotorOutput& output) {
-    Stm32PwmTimer timer;
-    timer.init();
-    timer.setDutyCycle(timerChannel_ + 0, output.frontLeft);
-    timer.setDutyCycle(timerChannel_ + 1, output.frontRight);
-    timer.setDutyCycle(timerChannel_ + 2, output.rearLeft);
-    timer.setDutyCycle(timerChannel_ + 3, output.rearRight);
+    timer_.setDutyCycle(timerChannel_ + 0, output.frontLeft);
+    timer_.setDutyCycle(timerChannel_ + 1, output.frontRight);
+    timer_.setDutyCycle(timerChannel_ + 2, output.rearLeft);
+    timer_.setDutyCycle(timerChannel_ + 3, output.rearRight);
 }
 
 } // namespace drone::drivers

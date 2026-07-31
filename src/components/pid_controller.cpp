@@ -42,7 +42,10 @@ float PidController::update(float error, float dt) {
     previousError_ = error;
 
     // ---- Output calculation ----
-    float output = pTerm + iTerm - dTerm;
+    // Standard PID form: output = Kp*e + Ki*integral(e) + Kd*de/dt. The
+    // derivative term was previously subtracted, which pushes the output
+    // in the wrong direction and amplifies oscillation instead of damping it.
+    float output = pTerm + iTerm + dTerm;
 
     // ---- Anti-windup back-calculation on saturation ----
     if (output > outputMax_) {

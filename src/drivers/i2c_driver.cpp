@@ -112,14 +112,20 @@ I2cDriver::Result I2cDriver::init(const I2cConfig& config) {
 
     config_ = config;
 
-    // Enable peripheral clock via RCC (APB1 for I2C1-3, APB4 for I2C4)
-    volatile uint32_t& rcc_apb1lenr = *reinterpret_cast<volatile uint32_t*>(0x58024460UL);
-    volatile uint32_t& rcc_apb4enr  = *reinterpret_cast<volatile uint32_t*>(0x580244E4UL);
+    // Enable peripheral clock via RCC (APB1 for I2C1-3, APB4 for I2C4).
+    // Addresses verified against CMSIS RCC_TypeDef: APB1LENR=0xE8,
+    // APB4ENR=0xF4 (previously 0x60 and 0xE4 — the latter is actually
+    // APB3ENR, an unrelated register). I2C1EN/I2C2EN/I2C3EN are bits
+    // 21/22/23 (the old "20 + instance - 1" formula put I2C1 on bit 20,
+    // which is UART5EN, off by one for all three instances), and
+    // I2C4EN on APB4ENR is bit 7, not bit 4.
+    volatile uint32_t& rcc_apb1lenr = *reinterpret_cast<volatile uint32_t*>(0x580244E8UL);
+    volatile uint32_t& rcc_apb4enr  = *reinterpret_cast<volatile uint32_t*>(0x580244F4UL);
 
     if (instance_ <= 3) {
-        rcc_apb1lenr |= (1U << (20U + instance_ - 1U));  // I2C1=21, I2C2=22, I2C3=23
+        rcc_apb1lenr |= (1U << (20U + instance_));  // I2C1=21, I2C2=22, I2C3=23
     } else if (instance_ == 4) {
-        rcc_apb4enr  |= (1U << 4U);  // I2C4
+        rcc_apb4enr  |= (1U << 7U);  // I2C4
     }
 
     // Software reset

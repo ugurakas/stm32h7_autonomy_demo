@@ -40,18 +40,26 @@ namespace {
     volatile uint32_t& FLASH_ACR = *reinterpret_cast<volatile uint32_t*>(0x52002000UL);
 
     // ---- Reset and Clock Control (RM0433 §5.8) ----
+    // Offsets verified against the official STM32H753 CMSIS header
+    // (RCC_TypeDef in stm32h753xx.h). CFGR/PLLCKSELR/PLLCFGR/PLL1DIVR/BDCR
+    // were previously mis-mapped into the reserved gap between CR and
+    // D1CFGR, which meant PLL configuration and the SW/SWS clock-switch
+    // never touched real hardware registers.
     volatile uint32_t& RCC_CR       = *reinterpret_cast<volatile uint32_t*>(0x58024400UL);
-    volatile uint32_t& RCC_CFGR     = *reinterpret_cast<volatile uint32_t*>(0x58024408UL);
-    volatile uint32_t& RCC_PLLCKSELR = *reinterpret_cast<volatile uint32_t*>(0x5802440CUL);
-    volatile uint32_t& RCC_PLLCFGR  = *reinterpret_cast<volatile uint32_t*>(0x58024410UL);
-    volatile uint32_t& RCC_PLL1DIVR = *reinterpret_cast<volatile uint32_t*>(0x58024414UL);
+    volatile uint32_t& RCC_CFGR     = *reinterpret_cast<volatile uint32_t*>(0x58024410UL);
+    volatile uint32_t& RCC_PLLCKSELR = *reinterpret_cast<volatile uint32_t*>(0x58024428UL);
+    volatile uint32_t& RCC_PLLCFGR  = *reinterpret_cast<volatile uint32_t*>(0x5802442CUL);
+    volatile uint32_t& RCC_PLL1DIVR = *reinterpret_cast<volatile uint32_t*>(0x58024430UL);
     volatile uint32_t& RCC_D1CFGR   = *reinterpret_cast<volatile uint32_t*>(0x58024418UL);
     volatile uint32_t& RCC_D2CFGR   = *reinterpret_cast<volatile uint32_t*>(0x5802441CUL);
     volatile uint32_t& RCC_D3CFGR   = *reinterpret_cast<volatile uint32_t*>(0x58024420UL);
-    volatile uint32_t& RCC_BDCR     = *reinterpret_cast<volatile uint32_t*>(0x580244A0UL);
+    volatile uint32_t& RCC_BDCR     = *reinterpret_cast<volatile uint32_t*>(0x58024470UL);
 
     // ---- Power controller (RM0433 §8) ----
-    volatile uint32_t& PWR_D3CR     = *reinterpret_cast<volatile uint32_t*>(0x58024808UL);
+    // PWR_BASE = 0x58024800; D3CR is at offset 0x18 (CMSIS PWR_TypeDef),
+    // not 0x08 (which is CR2/reserved) — the wrong offset meant the VOS
+    // write below never touched the real D3CR register.
+    volatile uint32_t& PWR_D3CR     = *reinterpret_cast<volatile uint32_t*>(0x58024818UL);
 
     // ---- System control block – SysTick (ARM® v7‑M) ----
     volatile uint32_t& STK_CTRL     = *reinterpret_cast<volatile uint32_t*>(0xE000E010UL);
@@ -71,8 +79,13 @@ namespace {
     constexpr uint32_t FLASH_ACR_ICEN         = (1U << 1U);   ///< Instruction cache enable
 
     // ---- PWR_D3CR bit definitions (RM0433 §8.5) ----
-    constexpr uint32_t PWR_D3CR_VOS_MASK     = (3U << 0U);    ///< Voltage-scaling bit-field mask
-    constexpr uint32_t PWR_D3CR_VOS0         = (0U << 0U);    ///< VOS0 – high performance
+    // VOS is bits[15:14] and VOSRDY is bit 13 (CMSIS PWR_D3CR_VOS_Pos=14,
+    // PWR_D3CR_VOSRDY_Pos=13) — both were previously at bit 0, so the scale
+    // select wrote the wrong bits and the "ready" poll checked a field that
+    // never reflects regulator status.
+    constexpr uint32_t PWR_D3CR_VOS_MASK     = (3U << 14U);   ///< Voltage-scaling bit-field mask
+    constexpr uint32_t PWR_D3CR_VOS0         = (3U << 14U);   ///< VOS0 – high performance (11b)
+    constexpr uint32_t PWR_D3CR_VOSRDY       = (1U << 13U);   ///< Voltage regulator output ready
 
     // ---- SysTick control bits (ARM® v7‑M) ----
     constexpr uint32_t STK_CTRL_ENABLE   = (1U << 0U);        ///< Counter enable
@@ -94,52 +107,85 @@ namespace {
 // ============================================================================
 
 SystemClock::Result SystemClock::init() {
+    Result result = Result::Ok;
+    bool hseReady = false;
+    bool pllLocked = false;
+
     // Step 1: Enable HSE oscillator, poll until ready
     RCC_CR |= RCC_CR_HSEON;
-    if (!waitForHseReady()) {
-        return Result::ErrorHse;
+    hseReady = waitForHseReady();
+    if (!hseReady) {
+        result = Result::ErrorHse;
     }
 
-    // Step 2: Set voltage regulator to VOS0 (required for ≥ 400 MHz)
-    PWR_D3CR = (PWR_D3CR & ~PWR_D3CR_VOS_MASK) | PWR_D3CR_VOS0;
-    {
-        volatile uint32_t timeout = 1000000;
-        while ((PWR_D3CR & PWR_D3CR_VOS_MASK) != PWR_D3CR_VOS0 && --timeout) { }
+    if (hseReady) {
+        // Step 2: Set voltage regulator to VOS0 (required for ≥ 400 MHz),
+        // then wait for VOSRDY — the ready flag, not the selection field,
+        // is what actually indicates the regulator has settled.
+        PWR_D3CR = (PWR_D3CR & ~PWR_D3CR_VOS_MASK) | PWR_D3CR_VOS0;
+        {
+            volatile uint32_t timeout = 1000000;
+            while (!(PWR_D3CR & PWR_D3CR_VOSRDY) && --timeout) { }
+        }
+
+        // Step 3: Configure Flash for 400 MHz at VOS0: 4 wait-states, caches ON
+        configureFlashLatency(0);
+
+        // Step 4: Configure PLL1 and wait for lock
+        pllLocked = configurePll();
+        if (!pllLocked) {
+            result = Result::ErrorPll;
+        }
     }
 
-    // Step 3: Configure Flash for 400 MHz at VOS0: 4 wait-states, caches ON
-    configureFlashLatency(0);
+    if (hseReady && pllLocked) {
+        // Step 5: Set bus prescalers (RM0433 §5.5.10). Field positions and
+        // "/2" encodings verified against CMSIS RCC_D1CFGR_HPRE_DIV2 (0x8 at
+        // bits[3:0]), RCC_D1CFGR_D1CPRE_DIV2 (0x800, i.e. value 0x4 at
+        // bits[10:8]), RCC_D2CFGR_D2PPRE1/2_DIV2 (bits[6:4] / bits[10:8]),
+        // and RCC_D3CFGR_D3PPRE_DIV2 (bits[6:4]) — the previous encoding put
+        // every field at the wrong bit offset and left D1CPRE at /2 (which
+        // would have halved the CPU to 200 MHz, contradicting the 400 MHz
+        // CPU_FREQ_TARGET this function reports below).
+        //   D1 domain  → D1CPRE = /1 (400 MHz core), HPRE = /2 (200 MHz AHB)
+        //   D2 domain  → APB1DIV = /2 (100 MHz), APB2DIV = /2 (100 MHz)
+        //   D3 domain  → APB4DIV = /2 (100 MHz)
+        RCC_D1CFGR = (8U << 0U) | (0U << 8U);
+        RCC_D2CFGR = (4U << 4U) | (4U << 8U);
+        RCC_D3CFGR = (4U << 4U);
 
-    // Step 4: Configure PLL1 and wait for lock
-    if (!configurePll()) {
-        return Result::ErrorPll;
+        // Step 6: Switch system clock source to PLL1 (CFGR.SW = 0b011,
+        // bits [2:0]) and wait for CFGR.SWS (bits [5:3]) to confirm the
+        // switch. SWS lives 3 bits above SW, not 2 — reading it at the
+        // wrong shift meant this loop could never observe a successful
+        // switch and always spun to timeout.
+        RCC_CFGR = (RCC_CFGR & ~(7U << 0U)) | (3U << 0U);
+        {
+            volatile uint32_t timeout = 1000000;
+            while (((RCC_CFGR >> 3U) & 7U) != 3U && --timeout) { }
+        }
+
+        coreClockHz_ = CPU_FREQ_TARGET;
+    } else {
+        // HSE/PLL bring-up failed: the core is still running on the
+        // reset-default HSI oscillator. Record the frequency that is
+        // actually active so SysTick below gets a correct reload value
+        // instead of assuming the (never reached) 400 MHz PLL clock.
+        coreClockHz_ = HSI_VALUE;
     }
 
-    // Step 5: Set bus prescalers (RM0433 §5.5.10)
-    //   D1 domain  → D1CPRE = /2 (200 MHz), HPRE = /2 (200 MHz)
-    //   D2 domain  → APB1DIV = /2 (100 MHz), APB2DIV = /2 (100 MHz)
-    //   D3 domain  → APB3DIV = /1 (200 MHz), APB4DIV = /2 (100 MHz)
-    RCC_D1CFGR = (1U << 0U) | (8U << 4U);
-    RCC_D2CFGR = (4U << 0U) | (4U << 4U);
-    RCC_D3CFGR = (0U << 0U) | (4U << 4U);
-
-    // Step 6: Switch system clock source to PLL1 (CFGR.SW = 0b11)
-    RCC_CFGR = (RCC_CFGR & ~(3U << 0U)) | (3U << 0U);
-    {
-        volatile uint32_t timeout = 1000000;
-        while (((RCC_CFGR >> 2U) & 3U) != 3U && --timeout) { }
-    }
-
-    coreClockHz_ = CPU_FREQ_TARGET;
-
-    // Step 7: Configure SysTick for 1 ms period
+    // Step 7: Configure SysTick for 1 ms period. This always runs — even on
+    // a clock-configuration failure — because every delayMs()/getTickMs()
+    // caller (including the flight-controller failsafe timeout) depends on
+    // it; leaving SysTick disabled would hang the whole system permanently
+    // instead of just running at a lower, safe clock rate.
     systickCounter_ = 0;
-    const uint32_t tickValue = CPU_FREQ_TARGET / 1000U;
+    const uint32_t tickValue = coreClockHz_ / 1000U;
     STK_LOAD = tickValue - 1U;
     STK_VAL  = 0U;
     STK_CTRL = STK_CTRL_ENABLE | STK_CTRL_TICKINT | STK_CTRL_CLKSOURCE;
 
-    return Result::Ok;
+    return result;
 }
 
 // ============================================================================
@@ -193,18 +239,28 @@ bool SystemClock::waitForHseReady() {
 
 /// Configure PLL1 source = HSE, M=4, N=200, P=1, Q=2, R=2, then enable.
 bool SystemClock::configurePll() {
+    // PLLCKSELR: PLLSRC is bits[1:0] (2 = HSE), DIVM1 is bits[9:4] — both
+    // were previously written into the wrong bit positions (PLLSRC ended
+    // up in PLLCFGR, DIVM1 in PLLCKSELR bits[3:0]), so the PLL never
+    // actually read from HSE with the intended /4 pre-divider.
     // VCO input = 8 MHz / 4 = 2 MHz PFD
-    RCC_PLLCKSELR = (PLL_M << 0U);   // DIVM1 = 4
-    RCC_PLLCFGR   = (1U << 0U);      // PLL1SRC = HSE
+    RCC_PLLCKSELR = (2U << 0U) | (PLL_M << 4U);   // PLLSRC = HSE, DIVM1 = 4
+
+    // DIVP1EN/DIVQ1EN/DIVR1EN (bits 16/17/18) must be set or the PLL
+    // produces no P/Q/R output at all — SYSCLK would never actually
+    // receive a clock after switching SW to PLL1.
+    RCC_PLLCFGR = (1U << 16U) | (1U << 17U) | (1U << 18U);
 
     // f(VCO) = 2 MHz × 200 = 400 MHz
     // f(P)   = 400 MHz / 1  = 400 MHz (core)
     // f(Q)   = 400 MHz / 2  = 200 MHz
     // f(R)   = 400 MHz / 2  = 200 MHz
+    // R1 field is bits[31:24], not [31:25] — the extra shift clipped R's
+    // top bit into the reserved bit above the field.
     RCC_PLL1DIVR = ((PLL_N - 1U) << 0U) |
                    ((PLL_P - 1U) << 9U) |
                    ((PLL_Q - 1U) << 16U) |
-                   ((PLL_R - 1U) << 25U);
+                   ((PLL_R - 1U) << 24U);
 
     RCC_CR |= RCC_CR_PLL1ON;
 
@@ -219,7 +275,7 @@ bool SystemClock::configurePll() {
 bool SystemClock::configureLse() {
     RCC_BDCR |= (1U << 0U);       // LSEON
     volatile uint32_t timeout = 2000000;
-    while (!(RCC_BDCR & (1U << 2U))) {   // LSERDY
+    while (!(RCC_BDCR & (1U << 1U))) {   // LSERDY (bit 1, not bit 2)
         if (--timeout == 0) return false;
     }
     return true;

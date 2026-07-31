@@ -1,7 +1,2 @@
-#include <stdint.h>
-
-void SystemClock_Config(void) {
-    // Placeholder system clock init for STM32H7.
-    // This is intentionally minimal so the template can build and be expanded.
-    (void)0;
-}
+// SystemClock_Config is implemented in src/drivers/system_clock.cpp
+// (drone::drivers::SystemClock::init), which replaced this placeholder.

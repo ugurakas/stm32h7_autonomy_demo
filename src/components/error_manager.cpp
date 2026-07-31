@@ -46,10 +46,13 @@ record->timestampMs = drone::drivers::SystemClock::getTickMs();
 
 void ErrorManager::clearError(ErrorCode code) {
     ErrorRecord* record = getErrorRecord(code);
-    if (record) {
+    // Only decrement for a record that was actually active: clearing an
+    // already-inactive (or never-reported) code must be a no-op. Without
+    // this guard, calling clearError() twice underflows the unsigned
+    // errorCount_ to ~4 billion, permanently tripping hasError().
+    if (record && record->active) {
         record->active = false;
-        errorCount_--;
-        if (errorCount_ < 0) errorCount_ = 0;
+        if (errorCount_ > 0) errorCount_--;
     }
 }
 

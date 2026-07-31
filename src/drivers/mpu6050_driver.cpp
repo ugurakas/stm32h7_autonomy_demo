@@ -88,10 +88,13 @@ ImuReading Mpu6050Driver::read() {
     ImuReading reading{};
     if (!initialized_) return reading;
 
-    // Register auto-increment burst read from ACCEL_XOUT_H (0x3B)
+    // Register auto-increment burst read from ACCEL_XOUT_H (0x3B).
+    // Copy to a local first: taking the address of the static constexpr
+    // member directly would odr-use it, requiring an out-of-class
+    // definition that doesn't exist.
     uint8_t data[14];
-    I2cDriver::Result res = i2c_.writeRead(address_,
-        (const uint8_t*)&REG_ACCEL_XOUT_H, 1, data, 14);
+    uint8_t regAddr = REG_ACCEL_XOUT_H;
+    I2cDriver::Result res = i2c_.writeRead(address_, &regAddr, 1, data, 14);
 
     if (res != I2cDriver::Result::Ok) {
         return reading;

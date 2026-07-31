@@ -7,15 +7,16 @@ void MockImuSensor::init() {
 }
 
 ImuReading MockImuSensor::read() {
-    static float angle = 0.0f;
-    angle += 0.01f;
+    // Instance member, not a function-local static: a function-local
+    // static would be shared across every MockImuSensor instance.
+    angle_ += 0.01f;
     return ImuReading{
         0.0f,
         0.0f,
         1.0f,
         0.0f,
         0.0f,
-        angle,
+        angle_,
         25.0f
     };
 }

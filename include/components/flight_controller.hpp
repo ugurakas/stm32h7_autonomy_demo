@@ -88,6 +88,7 @@ private:
     uint32_t failsafeTimer_;
     float targetAltitude_;
     float altitudeIntegral_;
+    float altVelocity_ = 0.0f;   ///< Estimated vertical velocity (per-instance)
 
     // PID controllers
     PidController rollPid_{PidController::Gains{1.2f, 0.05f, 0.1f}};

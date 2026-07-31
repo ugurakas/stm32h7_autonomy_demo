@@ -27,6 +27,7 @@ namespace drone::drivers {
 // =============================================================================
 
 constexpr uint32_t HSE_VALUE       = 8000000UL;     ///< 8 MHz external crystal on Nucleo‑H743ZI
+constexpr uint32_t HSI_VALUE       = 64000000UL;    ///< Reset-default HSI frequency (RM0433 §5.3.3) — active if HSE/PLL bring-up fails
 constexpr uint32_t CPU_FREQ_MAX    = 480000000UL;   ///< Absolute maximum CPU frequency (Hz)
 constexpr uint32_t CPU_FREQ_TARGET = 400000000UL;   ///< Target CPU frequency after PLL lock (Hz)
 constexpr uint32_t AHB_FREQ        = 200000000UL;   ///< AHB bus frequency (Hz)

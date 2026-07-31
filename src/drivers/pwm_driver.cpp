@@ -87,8 +87,11 @@ namespace {
     constexpr uint32_t RCC_APB2ENR_TIM16  = (1U << 17U);
     constexpr uint32_t RCC_APB2ENR_TIM17  = (1U << 18U);
 
-    volatile uint32_t& RCC_APB1LENR = *reinterpret_cast<volatile uint32_t*>(0x58024460UL);
-    volatile uint32_t& RCC_APB2ENR  = *reinterpret_cast<volatile uint32_t*>(0x580244A0UL);
+    // Offsets verified against CMSIS RCC_TypeDef: APB1LENR=0xE8, APB2ENR=0xF0
+    // (previously 0x60/0xA0 — wrong register, so these timers' clocks were
+    // never actually enabled).
+    volatile uint32_t& RCC_APB1LENR = *reinterpret_cast<volatile uint32_t*>(0x580244E8UL);
+    volatile uint32_t& RCC_APB2ENR  = *reinterpret_cast<volatile uint32_t*>(0x580244F0UL);
 }
 
 // ============================================================================
@@ -126,15 +129,20 @@ bool PwmDriver::init(const PwmConfig& config) {
     base[TIM_ARR_OFF / 4U] = period;
     base[TIM_EGR_OFF / 4U] = TIM_EGR_UG;   // Force update of prescaler
 
-    // Configure PWM mode 1, preload on CC1–CC4
+    // Configure PWM mode 1, preload on CC1–CC4. Each CCMRx register packs
+    // two channels: low byte (bits 0-7) for the odd channel, high byte
+    // (bits 8-15) for the even channel, using an identical bit layout —
+    // only setting the low byte left channels 2 and 4 in reset "Frozen"
+    // mode, so those outputs never produced a PWM waveform.
+    constexpr uint32_t channelBits = TIM_CCMR1_OC1M_PWM1 | TIM_CCMR1_OC1PE;
     uint32_t ccmr1 = base[TIM_CCMR1_OFF / 4U];
-    ccmr1 &= ~(0xFFU);
-    ccmr1 |= (TIM_CCMR1_OC1M_PWM1 | TIM_CCMR1_OC1PE);
+    ccmr1 &= ~(0xFFFFU);
+    ccmr1 |= channelBits | (channelBits << 8U);
     base[TIM_CCMR1_OFF / 4U] = ccmr1;
 
     uint32_t ccmr2 = base[TIM_CCMR2_OFF / 4U];
-    ccmr2 &= ~(0xFFU);
-    ccmr2 |= (TIM_CCMR1_OC1M_PWM1 | TIM_CCMR1_OC1PE);
+    ccmr2 &= ~(0xFFFFU);
+    ccmr2 |= channelBits | (channelBits << 8U);
     base[TIM_CCMR2_OFF / 4U] = ccmr2;
 
     // Enable all 4 output channels

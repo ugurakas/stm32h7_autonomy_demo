@@ -83,9 +83,12 @@ bool CommandReceiver::receive(core::VehicleCommand& command) {
         return parseCommand(buffer_, fullPacketSize, command);
     }
 
-    // Simple command (opcode + CRC)
+    // Simple command (opcode + CRC). Reject the packet outright if the CRC
+    // check fails — a corrupted opcode must never be executed as a command.
     if (!validatePacket(buffer_, size_)) {
         invalidPackets_++;
+        size_ = 0;
+        return false;
     }
 
     command = {};
@@ -136,9 +139,10 @@ uint16_t CommandReceiver::calculateCrc16(const uint8_t* data, std::size_t length
 bool CommandReceiver::validatePacket(const uint8_t* data, std::size_t size) {
     if (size < 3) return false;  // Need at least opcode + 2 CRC bytes
 
-    // Last 2 bytes are CRC (big-endian)
-    uint16_t receivedCrc = (static_cast<uint16_t>(data[size - 2]) << 8) |
-                            data[size - 1];
+    // Last 2 bytes are CRC (little-endian: low byte first), matching the
+    // byte order used by senders (see TelemetryLink::sendTelemetry).
+    uint16_t receivedCrc = static_cast<uint16_t>(data[size - 2]) |
+                           (static_cast<uint16_t>(data[size - 1]) << 8);
     uint16_t calculatedCrc = calculateCrc16(data, size - 2);
 
     return (receivedCrc == calculatedCrc);
@@ -162,10 +166,12 @@ bool CommandReceiver::parseCommand(const uint8_t* data, std::size_t size,
         uint32_t thrRaw   = data[13] | ((uint32_t)data[14] << 8) |
                             ((uint32_t)data[15] << 16) | ((uint32_t)data[16] << 24);
 
-        command.roll     = *reinterpret_cast<float*>(&rollRaw);
-        command.pitch    = *reinterpret_cast<float*>(&pitchRaw);
-        command.yaw      = *reinterpret_cast<float*>(&yawRaw);
-        command.throttle = *reinterpret_cast<float*>(&thrRaw);
+        // Use memcpy for the bit reinterpretation: reinterpret_cast on the
+        // raw pointer would violate strict aliasing (undefined behaviour).
+        std::memcpy(&command.roll,     &rollRaw,  sizeof(float));
+        std::memcpy(&command.pitch,    &pitchRaw, sizeof(float));
+        std::memcpy(&command.yaw,      &yawRaw,   sizeof(float));
+        std::memcpy(&command.throttle, &thrRaw,   sizeof(float));
     }
 
     return true;

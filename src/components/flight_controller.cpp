@@ -137,12 +137,11 @@ void FlightController::applySetAttitude(const core::VehicleCommand& cmd, float d
     state_.mode = core::FlightMode::Armed;
     
     // Update altitude estimation from throttle
-    static float altVelocity = 0.0f;
-    altVelocity += (state_.throttle - 0.5f) * 0.1f * dt;
-    state_.altitudeMeters += altVelocity * dt;
+    altVelocity_ += (state_.throttle - 0.5f) * 0.1f * dt;
+    state_.altitudeMeters += altVelocity_ * dt;
     if (state_.altitudeMeters < 0.0f) {
         state_.altitudeMeters = 0.0f;
-        altVelocity = 0.0f;
+        altVelocity_ = 0.0f;
     }
 }
 
@@ -175,6 +174,7 @@ void FlightController::reset() noexcept {
     failsafeTimer_ = 0;
     targetAltitude_ = 0.0f;
     altitudeIntegral_ = 0.0f;
+    altVelocity_ = 0.0f;
     rollPid_.reset();
     pitchPid_.reset();
     yawPid_.reset();

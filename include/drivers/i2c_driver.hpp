@@ -146,9 +146,9 @@ private:
     volatile uint32_t* getBaseAddr() const;
 
     // I2C peripheral base addresses (RM0433 §2.3)
-    static constexpr uint32_t I2C1_BASE = 0x40012000UL;
-    static constexpr uint32_t I2C2_BASE = 0x40013000UL;
-    static constexpr uint32_t I2C3_BASE = 0x40014000UL;
+    static constexpr uint32_t I2C1_BASE = 0x40005400UL;
+    static constexpr uint32_t I2C2_BASE = 0x40005800UL;
+    static constexpr uint32_t I2C3_BASE = 0x40005C00UL;
     static constexpr uint32_t I2C4_BASE = 0x58001C00UL;
 };
 

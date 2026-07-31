@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "drivers/stm32_pwm_timer.hpp"
+
 namespace drone::drivers {
 
 struct MotorOutput {
@@ -36,6 +38,7 @@ public:
 
 private:
     std::uint32_t timerChannel_;
+    Stm32PwmTimer timer_;
 };
 
 } // namespace drone::drivers

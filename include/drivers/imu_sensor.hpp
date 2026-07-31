@@ -23,6 +23,9 @@ class MockImuSensor : public ImuSensor {
 public:
     void init() override;
     ImuReading read() override;
+
+private:
+    float angle_ = 0.0f;  ///< Simulated yaw angle, per-instance
 };
 
 } // namespace drone::drivers

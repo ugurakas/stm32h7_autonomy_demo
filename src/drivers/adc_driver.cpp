@@ -3,7 +3,7 @@
  * @brief   Implementation of the STM32H7 ADC driver.
  *
  * @details Implements register-level ADC operations for STM32H7:
- *          - ADC1–ADC3 with clock enable via RCC_AHB4ENR
+ *          - ADC1/ADC2 clock enable via RCC_AHB1ENR, ADC3 via RCC_AHB4ENR
  *          - Voltage regulator enable, calibration sequence
  *          - 6-/8-/10-/12-bit resolution selection
  *          - Single-shot and continuous conversion modes
@@ -11,7 +11,7 @@
  *          - Raw read, voltage conversion, and battery voltage
  *
  *          Register addresses conform to RM0433 §27.
- *          ADC123_COMMON base = 0x40022100 for VBAT enable.
+ *          ADC123_COMMON base = 0x40022300 for VBAT enable.
  *
  * @ingroup drivers
  */
@@ -62,10 +62,18 @@ namespace {
     constexpr uint32_t ADC_CCR_VBATSEL    = (1U << 2U);    ///< VBAT battery channel
 
     // ---- RCC clock enables (RM0433 §5.8) ----
-    constexpr uint32_t RCC_AHB4ENR_ADC12  = (1U << 5U);    ///< ADC1 and ADC2 on AHB4
-    constexpr uint32_t RCC_AHB4ENR_ADC3   = (1U << 6U);    ///< ADC3 on AHB4
+    // NOTE: ADC1/ADC2 are clocked from AHB1ENR bit 5 (ADC12EN), and ADC3 from
+    // AHB4ENR bit 24 (ADC3EN). Bits 5/6 of AHB4ENR are GPIOF/GPIOG clock
+    // enables (see gpio_driver.cpp), not ADC — using them here would enable
+    // the wrong peripheral clocks and leave the ADC unclocked.
+    constexpr uint32_t RCC_AHB1ENR_ADC12  = (1U << 5U);    ///< ADC1 and ADC2 on AHB1
+    constexpr uint32_t RCC_AHB4ENR_ADC3   = (1U << 24U);   ///< ADC3 on AHB4
 
+    volatile uint32_t& RCC_AHB1ENR = *reinterpret_cast<volatile uint32_t*>(0x580244D8UL);
     volatile uint32_t& RCC_AHB4ENR = *reinterpret_cast<volatile uint32_t*>(0x580244E0UL);
+
+    // ADC123_COMMON base = ADC1_BASE + 0x300 (RM0433 §27.6, Table 175).
+    constexpr uint32_t ADC123_COMMON_BASE = 0x40022300UL;
 }
 
 // ============================================================================
@@ -120,8 +128,11 @@ AdcDriver::Result AdcDriver::init(const AdcConfig& config) {
     if (config_.useDma)         cfgr |= ADC_CFGR_DMAEN;
     base[ADC_CFGR_OFF / 4U] = cfgr;
 
-    // Step 5: Enable battery sensor and temperature sensor in common regs
-    volatile uint32_t* common = reinterpret_cast<volatile uint32_t*>(0x40022100UL);
+    // Step 5: Enable battery sensor and temperature sensor in common regs.
+    // 0x40022100 is ADC2_BASE, not the common block — writing there hit
+    // ADC2's own IER register instead of ADC123_COMMON, so VBAT/VSENSE
+    // were never actually selected.
+    volatile uint32_t* common = reinterpret_cast<volatile uint32_t*>(ADC123_COMMON_BASE);
     common[ADC_CCR_OFF / 4U] |= ADC_CCR_VBATSEL | ADC_CCR_VSENSESEL;
 
     initialized_ = true;
@@ -187,7 +198,11 @@ volatile uint32_t* AdcDriver::getBaseAddr() const {
 }
 
 void AdcDriver::enableClock() {
-    RCC_AHB4ENR |= (instance_ <= 2) ? RCC_AHB4ENR_ADC12 : RCC_AHB4ENR_ADC3;
+    if (instance_ <= 2) {
+        RCC_AHB1ENR |= RCC_AHB1ENR_ADC12;
+    } else {
+        RCC_AHB4ENR |= RCC_AHB4ENR_ADC3;
+    }
 }
 
 } // namespace drone::drivers

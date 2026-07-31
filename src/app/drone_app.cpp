@@ -45,17 +45,17 @@ void DroneApplication::init() {
     
     // Ready indication
     statusLed_.write(1);
-    SystemClock::delayMs(100);
+    drivers::SystemClock::delayMs(100);
     statusLed_.write(0);
 }
 
 void DroneApplication::run() {
     init();
     
-    uint32_t lastTime = SystemClock::getTickMs();
-    
+    uint32_t lastTime = drivers::SystemClock::getTickMs();
+
     while (true) {
-        uint32_t now = SystemClock::getTickMs();
+        uint32_t now = drivers::SystemClock::getTickMs();
         float dt = (now - lastTime) * 0.001f;
         if (dt <= 0.0f) dt = 0.001f;
         if (dt > 0.01f) dt = 0.01f;  // Cap at 10ms
@@ -141,10 +141,10 @@ void DroneApplication::run() {
         ++loopCount_;
         
         // Simple loop rate control
-        uint32_t elapsed = SystemClock::getTickMs() - now;
+        uint32_t elapsed = drivers::SystemClock::getTickMs() - now;
         if (elapsed < 1) {
             // Busy wait for ~1kHz loop
-            while (SystemClock::getTickMs() - now < 1) { }
+            while (drivers::SystemClock::getTickMs() - now < 1) { }
         }
     }
 }
@@ -196,13 +196,13 @@ void DroneApplication::updateActuators() {
     
     const auto motorOutput = drivers::MotorMixer::mix(mixerInputs);
     motorDriver_.setAllOutputs(
-        motorOutput.m1, motorOutput.m2, 
-        motorOutput.m3, motorOutput.m4
+        motorOutput.frontLeft, motorOutput.frontRight,
+        motorOutput.rearLeft, motorOutput.rearRight
     );
 }
 
 void DroneApplication::updateTelemetry() {
-    uint32_t now = SystemClock::getTickMs();
+    uint32_t now = drivers::SystemClock::getTickMs();
     
     // Send telemetry at 10Hz
     if (now - lastTelemetryTime_ >= 100) {
@@ -230,7 +230,7 @@ void DroneApplication::handleButton() {
     static uint32_t lastDebounceTime = 0;
     
     bool currentState = button_.read();
-    uint32_t now = SystemClock::getTickMs();
+    uint32_t now = drivers::SystemClock::getTickMs();
     
     if (currentState != lastButtonState && (now - lastDebounceTime) > 50) {
         lastDebounceTime = now;
@@ -257,7 +257,7 @@ void DroneApplication::handleButton() {
 bool DroneApplication::checkFailsafe() {
     // Check if command receiver hasn't received valid packets
     static uint32_t lastValidPacket = 0;
-    uint32_t now = SystemClock::getTickMs();
+    uint32_t now = drivers::SystemClock::getTickMs();
     
     uint32_t validPackets = commandReceiver_.getValidPackets();
     static uint32_t lastValidCount = 0;

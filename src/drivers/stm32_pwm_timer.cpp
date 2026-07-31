@@ -2,15 +2,16 @@
 
 namespace drone::drivers {
 
+Stm32PwmTimer::Stm32PwmTimer(std::uint32_t timerInstance)
+    : pwm_(timerInstance, 1) {
+}
+
 void Stm32PwmTimer::init() {
-    // Placeholder for real STM32 timer configuration.
-    // A real implementation would initialize TIMx, enable PWM output pins,
-    // and configure the appropriate prescaler and period.
+    pwm_.init();
 }
 
 void Stm32PwmTimer::setDutyCycle(std::uint32_t channel, float dutyCycle) {
-    (void)channel;
-    (void)dutyCycle;
+    pwm_.setDutyCycle(channel, dutyCycle);
 }
 
 } // namespace drone::drivers

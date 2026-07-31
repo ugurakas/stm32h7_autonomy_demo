@@ -13,6 +13,8 @@ set "TEST_DIR=%~dp0"
 set "SRC_DIR=%TEST_DIR%..\src"
 
 set "SOURCES=%TEST_DIR%test_main.cpp"
+set "SOURCES=%SOURCES% %TEST_DIR%test_framework.cpp"
+set "SOURCES=%SOURCES% %TEST_DIR%mock_system_clock.cpp"
 set "SOURCES=%SOURCES% %SRC_DIR%\components\pid_controller.cpp"
 set "SOURCES=%SOURCES% %SRC_DIR%\components\flight_controller.cpp"
 set "SOURCES=%SOURCES% %SRC_DIR%\components\command_receiver.cpp"
